@@ -133,26 +133,6 @@ salt_ret_t salt_read_begin_pom(salt_channel_t *p_channel,
                                salt_msg_t *p_msg, 
                                uint8_t *p_pom, 
                                uint32_t *p_size);
-//Function for client search in the LIST and return 
-CLIENT  *search_client(LIST *p_list,
-                       SOCKET y)
-          
-{
-
-    CLIENT *p_find = p_list->p_head;
-
-    while (p_find != NULL)
-    {
-        if (y == (p_find->sock_fd))
-        {
-            return p_find;
-        }
-
-        p_find = p_find->p_next; 
-    }
-
-
-}
 
 
 //Function for listing of people to the console
@@ -167,6 +147,26 @@ void listing_clients(LIST *p_list)
         printf("%s\n", p_actuall->address_buffer);
         p_actuall = p_actuall->p_next; 
     }
+}
+
+//Function for client search in the LIST and return 
+CLIENT  *search_client(LIST *p_list,
+                       SOCKET y)
+          
+{
+    CLIENT *p_find = p_list->p_head;
+
+    while (p_find != NULL)
+    {
+        if (y == (p_find->sock_fd))
+        {
+            return p_find;
+        }
+
+        p_find = p_find->p_next; 
+    }
+
+
 }
 
 
@@ -315,7 +315,7 @@ int main() {
                     insert(p_list, client_info);
 
                     //List of clients connected to the server with a successful Salt handshake       
-                    listing_clients(p_list);       
+                   // listing_clients(p_list);       
                 } else {
                     
                     memset(rx_buffer, 0, sizeof(hndsk_buffer));
