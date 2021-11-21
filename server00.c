@@ -38,13 +38,153 @@
 
 #include <time.h>
 
+
+//Client structure and new data type CLIENT 
+typedef struct point {
+    char address_buffer[100];
+    SOCKET sock_fd;
+    salt_channel_t channel;
+    socklen_t client_len;
+    struct sockaddr_storage client_address;
+    struct point *p_next;
+    struct point *p_previous;
+} CLIENT; //UZEL
+
+//LIST structure and new data type LIST
+typedef struct {
+    int count;
+    CLIENT *p_head;
+    CLIENT *p_tail;
+} LIST; //SEZNAM
+
+//Function that allocates memory for the list structure and sets the head and tail to NULL
+LIST *create_list()
+{
+    LIST *p_list = (LIST *) malloc(sizeof(LIST));
+    if (p_list == NULL)
+    {
+        printf("Error - Out of memory.\n");
+        exit(1);
+    }
+    p_list->p_head = NULL;
+    p_list->p_tail = NULL;
+    p_list->count = 0;
+    return p_list;
+}
+
+
+//Function for realese LIST 
+void realese_list(LIST *p_list)
+{
+    CLIENT *p_actuall = p_list->p_head;
+    CLIENT *p_old;
+    // 
+    while (p_actuall != NULL)
+    {
+        p_old = p_actuall;
+        p_actuall = p_actuall->p_next; 
+        free(p_old);
+    }
+    p_list->count--;
+    free(p_list);
+}
+
+//Function for create client
+CLIENT *create_client()
+{
+    CLIENT *p_client;
+    p_client = (CLIENT *) malloc(sizeof(CLIENT));
+    if (p_client == NULL)
+    {
+        printf("Error - Out of memory.\n");
+        exit(1);
+    }
+    return p_client;
+}
+
+
+//Function for connecting a new node to the list
+void insert(LIST *p_list, 
+             CLIENT *p_client)
+{
+    // There are some people on the list
+    if (p_list->p_tail != NULL)
+    {
+        p_list->p_tail->p_next = p_client; // Connecting the last person to a new person
+        p_client->p_previous = p_list->p_tail; // Joining a new person to a former last person
+        p_list->p_tail = p_client; // Save a new tail(client)
+    }
+    else // List is empty
+    {
+        p_client->p_previous = NULL;     // There is none in front of the person
+        p_list->p_head = p_client;       // Assign a person to the list
+        p_list->p_tail = p_client;      // Assign a person to the list
+    }
+    p_client->p_next = NULL;
+    p_list->count++;
+}
+
 //Function for reads encrypted message
 salt_ret_t salt_read_begin_pom(salt_channel_t *p_channel, 
-							   uint8_t *p_buffer, 
-							   uint32_t buffer_size, 
-							   salt_msg_t *p_msg, 
-							   uint8_t *p_pom, 
-							   uint32_t *p_size);
+                               uint8_t *p_buffer, 
+                               uint32_t buffer_size, 
+                               salt_msg_t *p_msg, 
+                               uint8_t *p_pom, 
+                               uint32_t *p_size);
+
+//Function for client search in the LIST and return 
+void  search_client(LIST *p_list,
+                    SOCKET y,
+                    SOCKET *p_socket,
+                    salt_channel_t *p_channel, 
+                    uint8_t *p_buffer, 
+                    uint32_t buffer_size, 
+                    salt_msg_t *p_msg, 
+                    uint8_t *p_pom, 
+                    uint32_t *p_size)
+{
+
+
+    CLIENT *p_actuall = p_list->p_head;
+    salt_ret_t ret_msg;
+
+    while (p_actuall != NULL)
+    {
+        if (y == (*p_socket))
+        {
+            do { 
+                ret_msg = salt_read_begin_pom(p_channel, 
+                                          p_buffer, 
+                                          buffer_size, 
+                                          p_msg, 
+                                          p_pom, 
+                                          p_size);
+            } while (ret_msg == SALT_PENDING);
+        }
+
+        p_actuall = p_actuall->p_next; 
+    }
+
+}
+
+
+//Function for listing of people to the console
+void listing_clients(LIST *p_list)
+{
+    printf("\nConnected clients (IPv4):\n");
+    
+    CLIENT *p_actuall = p_list->p_head;
+    while (p_actuall != NULL)
+    {
+        // List of persons
+        printf("%s\n", p_actuall->address_buffer);
+        p_actuall = p_actuall->p_next; 
+    }
+}
+
+
+//Function for create Salt handshake between server-klient
+void salt_hndshk(CLIENT *p_client);
 
 //Ready sk_sec key for server
 static uint8_t host_sk_sec[64] = { 
@@ -58,39 +198,20 @@ static uint8_t host_sk_sec[64] = {
     0x73, 0x41, 0x3b, 0x37, 0x3d, 0x36, 0x16, 0x8b
 };
 
-struct clientInfo {
-    SOCKET socket_client;
-    char ip_addr[16];
-    struct sockaddr_in client;
-    salt_channel_t channel;
-};
-
 int main() { 
 
 #if defined(_WIN32)
 
     //Variables
-    SOCKET socket_listen;;
-    salt_channel_t server;
+    SOCKET socket_listen;
 
-    struct clientInfo *client_info;
-
-    uint8_t hndsk_buffer[SALT_HNDSHK_BUFFER_SIZE];
     uint8_t rx_buffer[UINT16_MAX * 4];
+    uint8_t hndsk_buffer[SALT_HNDSHK_BUFFER_SIZE];
     uint8_t pom_buffer[SALT_HNDSHK_BUFFER_SIZE];
-    uint8_t tx_buffer[UINT16_MAX * 4];
-
-    salt_msg_t msg_out;
-    salt_ret_t ret;
-    salt_ret_t ret_msg;
     salt_msg_t msg_in;
-
-    uint8_t protocol_buffer[128];
     salt_protocols_t protocols;
-
-    clock_t start_t, end_t;
-    //uint8_t version[2] = { 0x00, 0x01 };
-
+    salt_msg_t msg_out;
+    salt_ret_t ret_msg;
     uint32_t verify = 0, decrypt_size;
 
     //The MAKEWORD macro allows us to request Winsock version 2.2
@@ -112,7 +233,7 @@ int main() {
 
     //Setting a pointer to a structure that contains return information from the getaddrinfo () function
     struct addrinfo *bind_address; 
-    getaddrinfo(0, "8080", &hints, &bind_address); //port 8080, generate an address suitable for the bind () function
+    getaddrinfo("192.168.100.8", "8080", &hints, &bind_address); //port 8080, generate an address suitable for the bind () function
 
     //Creating socket
     printf("Creating socket...\n");
@@ -132,11 +253,11 @@ int main() {
     }
 
     //After we've called bind(), we use the freeaddrinfo() function to free the memory for bind_address
-    freeaddrinfo(bind_address); 
     puts("Bind done");
+    freeaddrinfo(bind_address); 
 
     printf("Listening...\n");
-    if (listen(socket_listen, 10) < 0) {
+    if (listen(socket_listen, 5) < 0) {
         fprintf(stderr, "listen() failed. (%d)\n", GETSOCKETERRNO());
         return 1;
     }
@@ -147,10 +268,13 @@ int main() {
     FD_SET(socket_listen, &master);
     SOCKET max_socket = socket_listen;
 
+
     printf("Waiting for connections...\n");
 
-    while(1) {
+    //Create an empty list(p_list)
+    LIST *p_list = create_list();
 
+    while(1) {
         fd_set reads;
         reads = master;
 
@@ -161,138 +285,61 @@ int main() {
         }
 
         SOCKET i;
-
+        CLIENT *client_info;
         //Loop through each possible socket 
         for(i = 1; i <= max_socket; ++i) {
             if (FD_ISSET(i, &reads)) {
 
                 //If socket_listen, create TCP connection of accept() function
-                if (i == socket_listen) {
-                	
-                    struct sockaddr_storage client_address;
-                    socklen_t client_len = sizeof(client_address);
-                    client_info = malloc(sizeof(struct clientInfo));
+                 if (i == socket_listen) {
+                    //
+                 	client_info = create_client();
+                    client_info->client_len = sizeof(client_info->client_address);
+                    client_info->sock_fd = accept(socket_listen,
+                            (struct sockaddr*) &client_info->client_address,
+                            &client_info->client_len);
 
-                    client_info->socket_client = accept(socket_listen,
-                            (struct sockaddr*) &client_address,
-                            &client_len);
-                    if (!ISVALIDSOCKET(client_info->socket_client)) {
+                    if (!ISVALIDSOCKET(client_info->sock_fd)) {
                         fprintf(stderr, "accept() failed. (%d)\n",
                                 GETSOCKETERRNO());
                         return 1;
                     }
-                    
-                    //Addition socket_client to the fd_set structure master
-                    FD_SET(client_info->socket_client, &master);
-                    if (client_info->socket_client > max_socket)
-                        max_socket = client_info->socket_client;
+
+                    FD_SET(client_info->sock_fd, &master);
+                    if (client_info->sock_fd > max_socket)
+                        max_socket = client_info->sock_fd;
                 
-                    char address_buffer[100];
-
                     //Prints the client address using the getnameinfo() function
-                    getnameinfo((struct sockaddr*)&client_address,
-                            client_len,
-                            address_buffer, sizeof(address_buffer), 0, 0,
+                    getnameinfo((struct sockaddr*)&client_info->client_address,
+                            &client_info->client_len,
+                            client_info->address_buffer, 
+                            sizeof(client_info->address_buffer), 0, 0,
                             NI_NUMERICHOST);
-                    printf("New connection from %s\n", address_buffer);
+                    printf("New connection %s\n", client_info->address_buffer);
                     
+
                     printf("\nWaiting for succeses Salt handshake...\n");
-                    
-                    //Creates a new salt channel
-                    ret = salt_create(&server, SALT_SERVER, my_write, my_read, &my_time);
-                    assert(ret == SALT_SUCCESS);
 
-                    //Initiates to add information about supported protocols to host
-                    ret = salt_protocols_init(&server, &protocols, protocol_buffer, sizeof(protocol_buffer));
-                    assert(ret == SALT_SUCCESS);
-
-                    //Add a protocol to supported protocols
-                    ret = salt_protocols_append(&protocols, "ECHO", 4);
-                    assert(ret == SALT_SUCCESS);
-
-                    //Sets the signature used for the salt channel
-                    ret = salt_set_signature(&server, host_sk_sec);
-                    assert(ret == SALT_SUCCESS);
-
-                    //New ephemeral key pair is generated and the read and write nonce  is reseted
-                    ret = salt_init_session(&server, hndsk_buffer, sizeof(hndsk_buffer));
-                    assert(ret == SALT_SUCCESS);
-
-                    //Sets the context passed to the user injected read implementation
-                    ret = salt_set_context(&server, &client_info->socket_client, &client_info->socket_client);
-                    assert(ret == SALT_SUCCESS);
-
-                    //Set threshold for delay protection
-                    salt_set_delay_threshold(&server, 20000);
-
-                    start_t = clock();
                     //Salt handshake 
-                    ret = salt_handshake(&server, NULL);
-                    end_t = clock();
+                    salt_hndshk(client_info);
 
-                    printf("\n");
-                    printf("\t\n***** SERVER:Salt channelv2 handshake lasted: %6.6f sec. *****\n", ((double) (end_t -
-                            start_t) / (CLOCKS_PER_SEC))); 
-                    printf("\n");
+                    //Insert client to the list of clients
+                    insert(p_list, client_info);
 
-                    //Testing success for Salt handshake
-                    while (ret != SALT_SUCCESS) {
+                    //List of clients connected to the server with a successful Salt handshake       
+                    listing_clients(p_list);       
+                } else {
+                    
+                    memset(rx_buffer, 0, sizeof(hndsk_buffer));
 
-                        if (ret == SALT_ERROR) {
-                        printf("Error during handshake:\r\n");
-                        printf("Salt error: 0x%02x\r\n", server.err_code);
-                        printf("Salt error read: 0x%02x\r\n", server.read_channel.err_code);
-                        printf("Salt error write: 0x%02x\r\n", server.write_channel.err_code);
+                    //Search for clients by sockets and the is in the list
+                    //the server decrypts the data from the client
+                    search_client(p_list, i, &client_info->sock_fd, &client_info->channel, rx_buffer, 
+                                   sizeof(rx_buffer), &msg_in, pom_buffer, &decrypt_size);
 
-                        printf("Connection closed.\r\n");
-                        CLOSESOCKET(client_info->socket_client);
-           
-                        break;
-                        }
-
-                    ret = salt_handshake(&server, NULL);
-                    }
-                    if (ret == SALT_SUCCESS) {
-                        printf("\nSalt handshake successful\r\n");
-                        printf("\n");
-                        verify = 1;
-                    }
-
-                    } else if (verify){
-
-                        ret_msg = SALT_ERROR;
-                        memset(rx_buffer, 0, sizeof(hndsk_buffer));
-
-                        //Reads encrypted message
-                        ret_msg = salt_read_begin_pom(&server, rx_buffer, sizeof(rx_buffer), &msg_in, pom_buffer, &decrypt_size);
-
-                        SOCKET j;
-                        if (ret_msg == SALT_SUCCESS){ 
-                        	for (j = 1; j <= max_socket; ++j){
-                        		if (FD_ISSET(j, &master)){
-                        			if (j == socket_listen || j == i)
-                                		continue;
-                            		else { 
-
-	 									//Prepare data before send
-                            			salt_write_begin(tx_buffer, sizeof(tx_buffer), &msg_out);
-
-                            			//Copy clear text message to be encrypted to next encrypted package
-                            			salt_write_next(&msg_out, (uint8_t * )pom_buffer, decrypt_size);
-
-                            			//Wrapping, creating encrpted messages
-                            			salt_write_execute(&server, &msg_out, false);
-                            		} 
-                        		}
-                        	}
-                        } 
-
-                        while (ret_msg == SALT_ERROR){
-                            printf("\nThe message could not be decrypted\nClosing the socket\n");
-                            CLOSESOCKET(client_info->socket_client);
-                            break;
-                        } //Testing Salt error of messages
-                    } //Exchange of secured data
+                                   
+                    continue;
+                }
             } //if FD_ISSET
         } //for i to max_socket
     } //while(1)
@@ -303,9 +350,95 @@ int main() {
     WSACleanup();
 #endif
 
+    //Freeing memory of p_list
+    realese_list(p_list);
     printf("Finished.\n");
     return 0;
 }
+
+
+void salt_hndshk(CLIENT *p_client)
+{
+
+    //CLIENT *p_client = (context *);
+    //SOCKET sock = p_client->sock_fd;
+
+    uint8_t hndsk_buffer[SALT_HNDSHK_BUFFER_SIZE];
+    uint8_t rx_buffer[UINT16_MAX * 4];
+    uint8_t pom_buffer[SALT_HNDSHK_BUFFER_SIZE];
+    uint8_t tx_buffer[UINT16_MAX * 4];
+    uint8_t protocol_buffer[128];
+    uint32_t verify = 0, decrypt_size;
+
+    salt_msg_t msg_out;
+    salt_ret_t ret;
+    salt_ret_t ret_msg;
+    salt_msg_t msg_in;
+    salt_protocols_t protocols;
+
+    clock_t start_t, end_t;
+
+    ret = salt_create(&p_client->channel, SALT_SERVER, my_write, my_read, &my_time);
+    assert(ret == SALT_SUCCESS);
+
+    //Initiates to add information about supported protocols to host
+    ret = salt_protocols_init(&p_client->channel, &protocols, protocol_buffer, sizeof(protocol_buffer));
+    assert(ret == SALT_SUCCESS);
+
+    //Add a protocol to supported protocols
+    ret = salt_protocols_append(&protocols, "ECHO", 4);
+    assert(ret == SALT_SUCCESS);
+
+    //Sets the signature used for the salt channel
+    ret = salt_set_signature(&p_client->channel, host_sk_sec);
+    assert(ret == SALT_SUCCESS);
+
+    //New ephemeral key pair is generated and the read and write nonce  is reseted
+    ret = salt_init_session(&p_client->channel, hndsk_buffer, sizeof(hndsk_buffer));
+    assert(ret == SALT_SUCCESS);
+
+    //Sets the context passed to the user injected read implementation
+    ret = salt_set_context(&p_client->channel, &p_client->sock_fd, &p_client->sock_fd);
+    assert(ret == SALT_SUCCESS);
+
+    //Set threshold for delay protection
+    salt_set_delay_threshold(&p_client->channel, 20000);
+
+    start_t = clock();
+    //Salt handshake 
+    ret = salt_handshake(&p_client->channel, NULL);
+    end_t = clock();
+
+    printf("\n");
+    printf("\t\n***** SERVER:Salt channelv2 handshake lasted: %6.6f sec. *****\n", ((double) (end_t -
+            start_t) / (CLOCKS_PER_SEC))); 
+    printf("\n");
+
+    //Testing success for Salt handshake
+    while (ret != SALT_SUCCESS) {
+
+        if (ret == SALT_ERROR) {
+            printf("Error during handshake:\r\n");
+            printf("Salt error: 0x%02x\r\n", p_client->channel.err_code);
+            printf("Salt error read: 0x%02x\r\n", p_client->channel.read_channel.err_code);
+            printf("Salt error write: 0x%02x\r\n", p_client->channel.write_channel.err_code);
+            printf("Connection closed.\r\n");
+            CLOSESOCKET(p_client->sock_fd);
+            free(p_client);
+            break;
+        }
+
+        ret = salt_handshake(&p_client->channel, NULL);
+    }
+
+    if (ret == SALT_SUCCESS) {
+    printf("\nSalt handshake successful\r\n");
+    printf("\n");
+    verify = 1;
+    }
+      
+} 
+    
 
 //Function for reads encrypted message
 salt_ret_t salt_read_begin_pom(salt_channel_t *p_channel, 
