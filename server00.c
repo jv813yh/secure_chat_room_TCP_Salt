@@ -40,14 +40,13 @@
 
 
 //Client structure and new data type CLIENT 
-typedef struct point {
+typedef struct client {
     char address_buffer[100];
     SOCKET sock_fd;
     salt_channel_t channel;
     socklen_t client_len;
     struct sockaddr_storage client_address;
-    struct point *p_next;
-    struct point *p_previous;
+    struct client *p_next;
 } CLIENT; //UZEL
 
 //LIST structure and new data type LIST
@@ -104,24 +103,27 @@ CLIENT *create_client()
 
 
 //Function for connecting a new node to the list
-void insert(LIST *p_list, 
+void  insert(LIST *p_list, 
              CLIENT *p_client)
 {
     // There are some people on the list
-    if (p_list->p_tail != NULL)
-    {
-        p_list->p_tail->p_next = p_client; // Connecting the last person to a new person
-        p_client->p_previous = p_list->p_tail; // Joining a new person to a former last person
-        p_list->p_tail = p_client; // Save a new tail(client)
+   p_client->p_next = NULL;
+
+    // Seznam není prázdný
+    if(p_list->p_tail != NULL)
+    {        
+        // Připojí nový uzel za poslední
+        p_list->p_tail->p_next = p_client;
+        // Nastaví nový ocas
+        p_list->p_tail = p_client;
     }
-    else // List is empty
+    else // Seznam je prázdný, jen do něj vložíme uzel
     {
-        p_client->p_previous = NULL;     // There is none in front of the person
-        p_list->p_head = p_client;       // Assign a person to the list
-        p_list->p_tail = p_client;      // Assign a person to the list
+        p_list->p_head = p_client;
+        p_list->p_tail = p_client;
     }
-    p_client->p_next = NULL;
     p_list->count++;
+
 }
 
 //Function for reads encrypted message
@@ -131,39 +133,24 @@ salt_ret_t salt_read_begin_pom(salt_channel_t *p_channel,
                                salt_msg_t *p_msg, 
                                uint8_t *p_pom, 
                                uint32_t *p_size);
-
 //Function for client search in the LIST and return 
-void  search_client(LIST *p_list,
-                    SOCKET y,
-                    SOCKET *p_socket,
-                    salt_channel_t *p_channel, 
-                    uint8_t *p_buffer, 
-                    uint32_t buffer_size, 
-                    salt_msg_t *p_msg, 
-                    uint8_t *p_pom, 
-                    uint32_t *p_size)
+CLIENT  *search_client(LIST *p_list,
+                       SOCKET y)
+          
 {
 
+    CLIENT *p_find = p_list->p_head;
 
-    CLIENT *p_actuall = p_list->p_head;
-    salt_ret_t ret_msg;
-
-    while (p_actuall != NULL)
+    while (p_find != NULL)
     {
-        if (y == (*p_socket))
+        if (y == (p_find->sock_fd))
         {
-            do { 
-                ret_msg = salt_read_begin_pom(p_channel, 
-                                          p_buffer, 
-                                          buffer_size, 
-                                          p_msg, 
-                                          p_pom, 
-                                          p_size);
-            } while (ret_msg == SALT_PENDING);
+            return p_find;
         }
 
-        p_actuall = p_actuall->p_next; 
+        p_find = p_find->p_next; 
     }
+
 
 }
 
@@ -271,6 +258,8 @@ int main() {
 
     printf("Waiting for connections...\n");
 
+    CLIENT *client_info;
+
     //Create an empty list(p_list)
     LIST *p_list = create_list();
 
@@ -285,7 +274,6 @@ int main() {
         }
 
         SOCKET i;
-        CLIENT *client_info;
         //Loop through each possible socket 
         for(i = 1; i <= max_socket; ++i) {
             if (FD_ISSET(i, &reads)) {
@@ -334,10 +322,15 @@ int main() {
 
                     //Search for clients by sockets and the is in the list
                     //the server decrypts the data from the client
-                    search_client(p_list, i, &client_info->sock_fd, &client_info->channel, rx_buffer, 
-                                   sizeof(rx_buffer), &msg_in, pom_buffer, &decrypt_size);
 
-                                   
+                    CLIENT *client_encrypt = create_client();
+
+                    client_encrypt = search_client(p_list, i);
+
+                    salt_read_begin_pom(&client_encrypt->channel, rx_buffer, 
+                                       sizeof(rx_buffer), &msg_in, pom_buffer, &decrypt_size);
+                    free(client_encrypt);
+
                     continue;
                 }
             } //if FD_ISSET
