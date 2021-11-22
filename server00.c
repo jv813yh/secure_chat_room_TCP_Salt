@@ -193,6 +193,7 @@ int main() {
     SOCKET socket_listen;
 
     uint8_t rx_buffer[UINT16_MAX * 4];
+    uint8_t tx_buffer[UINT16_MAX * 4];
     uint8_t hndsk_buffer[SALT_HNDSHK_BUFFER_SIZE];
     uint8_t pom_buffer[SALT_HNDSHK_BUFFER_SIZE];
     salt_msg_t msg_in;
@@ -258,6 +259,7 @@ int main() {
 
     printf("Waiting for connections...\n");
 
+    //Definition data type of CLIENT structure
     CLIENT *client_info;
 
     //Create an empty list(p_list)
@@ -295,6 +297,7 @@ int main() {
 
                     FD_SET(client_info->sock_fd, &master);
                     if (client_info->sock_fd > max_socket)
+                
                         max_socket = client_info->sock_fd;
                 
                     //Prints the client address using the getnameinfo() function
@@ -311,28 +314,53 @@ int main() {
                     //Salt handshake 
                     salt_hndshk(client_info);
 
+
                     //Insert client to the list of clients
                     insert(p_list, client_info);
 
                     //List of clients connected to the server with a successful Salt handshake       
-                   // listing_clients(p_list);       
+                    listing_clients(p_list);       
                 } else {
-                    
                     memset(rx_buffer, 0, sizeof(hndsk_buffer));
 
                     //Search for clients by sockets and the is in the list
                     //the server decrypts the data from the client
-
                     CLIENT *client_encrypt = create_client();
-
                     client_encrypt = search_client(p_list, i);
 
+                    //Retrieving and decrypting messages from the client
                     salt_read_begin_pom(&client_encrypt->channel, rx_buffer, 
                                        sizeof(rx_buffer), &msg_in, pom_buffer, &decrypt_size);
-                    free(client_encrypt);
 
-                    continue;
-                }
+                    //Freeing client memory
+                    free(client_encrypt);
+                }//else
+
+                SOCKET j;
+                    for(j = 1; j <= max_socket; ++j){
+                        if(FD_ISSET(j, &master)){
+                            if (j == socket_listen || j == i){
+                                continue;
+
+                            } else {
+                                //Search for clients by sockets and the is in the list
+                                CLIENT *client_encrypt = create_client();
+                                client_encrypt = search_client(p_list, j);
+
+                                //Prepare data before send
+                                salt_write_begin(tx_buffer, sizeof(tx_buffer), &msg_out);
+
+                                //Copy clear text message to be encrypted to next encrypted package
+                                salt_write_next(&msg_out, (uint8_t * )pom_buffer, decrypt_size);
+
+                                //Wrapping, creating encrpted messages
+                                salt_write_execute(&client_encrypt->channel, &msg_out, false);
+
+                                //Freeing client memory
+                                free(client_encrypt);
+                                } //else
+                            } //if(FD_ISSET(j, &master)
+                        } //for(j = 1; j <= max_socket; ++j)
             } //if FD_ISSET
         } //for i to max_socket
     } //while(1)
@@ -352,23 +380,11 @@ int main() {
 
 void salt_hndshk(CLIENT *p_client)
 {
-
-    //CLIENT *p_client = (context *);
-    //SOCKET sock = p_client->sock_fd;
-
     uint8_t hndsk_buffer[SALT_HNDSHK_BUFFER_SIZE];
-    uint8_t rx_buffer[UINT16_MAX * 4];
     uint8_t pom_buffer[SALT_HNDSHK_BUFFER_SIZE];
-    uint8_t tx_buffer[UINT16_MAX * 4];
     uint8_t protocol_buffer[128];
-    uint32_t verify = 0, decrypt_size;
-
-    salt_msg_t msg_out;
-    salt_ret_t ret;
-    salt_ret_t ret_msg;
-    salt_msg_t msg_in;
     salt_protocols_t protocols;
-
+    salt_ret_t ret;
     clock_t start_t, end_t;
 
     ret = salt_create(&p_client->channel, SALT_SERVER, my_write, my_read, &my_time);
@@ -427,7 +443,6 @@ void salt_hndshk(CLIENT *p_client)
     if (ret == SALT_SUCCESS) {
     printf("\nSalt handshake successful\r\n");
     printf("\n");
-    verify = 1;
     }
       
 } 
