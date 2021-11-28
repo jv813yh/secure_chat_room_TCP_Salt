@@ -296,16 +296,13 @@ salt_ret_t salt_read_begin_pom(salt_channel_t *p_channel,
     	salt_err_t err_code = salt_read_init(header[0], p_buffer, size, p_msg);
     	SALT_VERIFY(err_code == SALT_ERR_NONE, err_code);
       	
-      	//Clear message from server(other clients) is displayed on the screen
-    	printf("\nMessage from client:\n%.*s\n", size, p_buffer);
-   	 	printf("\n");
-
-
+      	//Clear message is displayed on the screen
+    	printf("\nDecrypted message from client:\n%s\n", p_buffer);
+    	printf("\n");
     }
  
 
     return ret;
 }
-
 
 
