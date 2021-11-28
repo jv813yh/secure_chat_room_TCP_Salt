@@ -47,14 +47,15 @@ typedef struct client {
     socklen_t client_len;
     struct sockaddr_storage client_address;
     struct client *p_next;
-} CLIENT; //UZEL
+    struct client *p_previous;
+} CLIENT; 
 
 //LIST structure and new data type LIST
 typedef struct {
     int count;
     CLIENT *p_head;
     CLIENT *p_tail;
-} LIST; //SEZNAM
+} LIST; 
 
 //Function that allocates memory for the list structure and sets the head and tail to NULL
 LIST *create_list()
@@ -102,26 +103,82 @@ CLIENT *create_client()
 }
 
 
+//Function for delete node(client)
+CLIENT * deleteNode(CLIENT * head, SOCKET sock_fd) {
+  if(head == NULL) return NULL;
+  if(head->sock_fd == sock_fd ){
+    CLIENT *pre = head; 
+    head = head->p_next;
+    head->p_previous = NULL;
+    free(pre);
+    return head;
+  }
+  head->p_next=deleteNode(head->p_next,sock_fd);
+  return head;
+}
+
+
+void realese_client(LIST *p_list,CLIENT *p_client){
+   //Check the validity of function arguments first for safety purposes
+   if(p_list == NULL  || p_client == NULL) return;
+
+   SOCKET sock_fd = p_client->sock_fd;
+   CLIENT *p_head = p_list->p_head;
+   CLIENT *p_tail = p_list->p_tail;
+
+    //if list of the client is empty quite
+    if(p_tail == NULL) return;
+
+
+    //Test if the wanted node is the head or the tail
+    if(p_head == p_tail){
+      if(p_head->sock_fd == sock_fd){
+         p_list->p_head = NULL;
+         p_list->p_tail = NULL;
+         free(p_head);
+      }
+    return;
+    }
+    if(p_tail->sock_fd == sock_fd){
+     p_list->p_tail = p_tail->p_previous;
+     p_list->p_tail->p_next = NULL;
+     free(p_tail);
+     return;
+    }   
+    if(p_head->sock_fd == sock_fd){
+     p_list->p_head = p_head->p_next;
+     p_list->p_head->p_previous = NULL;
+     free(p_head);
+     return;
+   }
+  
+deleteNode(p_list->p_head,p_client->sock_fd);
+}
+
 //Function for connecting a new node to the list
 void  insert(LIST *p_list, 
-             CLIENT *p_client)
+            CLIENT *p_client)
 {
-    // There are some people on the list
-   p_client->p_next = NULL;
+      //There are some p_client on the p_list
+    if (p_list->p_tail != NULL)
+    {   
+        //Connecting the last person as a new person
+        p_list->p_tail->p_next = p_client; 
+        //Joining a new person to a former last person
+        p_client->p_previous = p_list->p_tail; 
+        //Save a new p_tail
+        p_list->p_tail = p_client; 
+    }
+    else 
+    {   //p_list is empty
 
-    // Seznam není prázdný
-    if(p_list->p_tail != NULL)
-    {        
-        // Připojí nový uzel za poslední
-        p_list->p_tail->p_next = p_client;
-        // Nastaví nový ocas
-        p_list->p_tail = p_client;
+        //There is none in front of the p_client
+        p_client->p_previous = NULL; 
+        //Assigning a p_client to the list (head and tail)
+        p_list->p_head = p_client; 
+        p_list->p_tail = p_client; 
     }
-    else // Seznam je prázdný, jen do něj vložíme uzel
-    {
-        p_list->p_head = p_client;
-        p_list->p_tail = p_client;
-    }
+    p_client->p_next = NULL;
     p_list->count++;
 
 }
@@ -133,27 +190,12 @@ salt_ret_t salt_read_begin_pom(salt_channel_t *p_channel,
                                salt_msg_t *p_msg, 
                                uint8_t *p_pom, 
                                uint32_t *p_size);
-
-
-//Function for listing of people to the console
-void listing_clients(LIST *p_list)
-{
-    printf("\nConnected clients (IPv4):\n");
-    
-    CLIENT *p_actuall = p_list->p_head;
-    while (p_actuall != NULL)
-    {
-        // List of persons
-        printf("%s\n", p_actuall->address_buffer);
-        p_actuall = p_actuall->p_next; 
-    }
-}
-
 //Function for client search in the LIST and return 
 CLIENT  *search_client(LIST *p_list,
                        SOCKET y)
           
 {
+
     CLIENT *p_find = p_list->p_head;
 
     while (p_find != NULL)
@@ -170,8 +212,27 @@ CLIENT  *search_client(LIST *p_list,
 }
 
 
+//Function for listing of people to the console
+void listing_clients(LIST *p_list)
+{
+    printf("\nCurrently connected clients (IPv4:)\n");
+    
+    CLIENT *p_actuall = p_list->p_head;
+    while (p_actuall != NULL)
+    {
+        // List of persons
+        printf("%s\n", p_actuall->address_buffer);
+        p_actuall = p_actuall->p_next; 
+    }
+
+    printf("\n");
+}
+
+
 //Function for create Salt handshake between server-klient
 void salt_hndshk(CLIENT *p_client);
+
+int my_api_crypto_hash(uint8_t *p_message, uint8_t *p_calculated_hash, int size);
 
 //Ready sk_sec key for server
 static uint8_t host_sk_sec[64] = { 
@@ -195,12 +256,10 @@ int main() {
     uint8_t rx_buffer[UINT16_MAX * 4];
     uint8_t tx_buffer[UINT16_MAX * 4];
     uint8_t hndsk_buffer[SALT_HNDSHK_BUFFER_SIZE];
-    uint8_t pom_buffer[SALT_HNDSHK_BUFFER_SIZE];
-    salt_msg_t msg_in;
-    salt_protocols_t protocols;
-    salt_msg_t msg_out;
+    uint8_t pom_buffer[UINT16_MAX * 4];
+    uint32_t decrypt_size;
+    salt_msg_t msg_in, msg_out;
     salt_ret_t ret_msg;
-    uint32_t verify = 0, decrypt_size;
 
     //The MAKEWORD macro allows us to request Winsock version 2.2
     WSADATA d;
@@ -208,7 +267,7 @@ int main() {
         fprintf(stderr, "Failed to initialize.\n");
         return 1;
     }
-	
+    
     printf("Configuring local address...\n");
     //Struct addrinfo hints
     struct addrinfo hints; 
@@ -259,7 +318,6 @@ int main() {
 
     printf("Waiting for connections...\n");
 
-    //Definition data type of CLIENT structure
     CLIENT *client_info;
 
     //Create an empty list(p_list)
@@ -283,7 +341,7 @@ int main() {
                 //If socket_listen, create TCP connection of accept() function
                  if (i == socket_listen) {
                     //
-                 	client_info = create_client();
+                    client_info = create_client();
                     client_info->client_len = sizeof(client_info->client_address);
                     client_info->sock_fd = accept(socket_listen,
                             (struct sockaddr*) &client_info->client_address,
@@ -297,14 +355,13 @@ int main() {
 
                     FD_SET(client_info->sock_fd, &master);
                     if (client_info->sock_fd > max_socket)
-                
                         max_socket = client_info->sock_fd;
                 
                     //Prints the client address using the getnameinfo() function
                     getnameinfo((struct sockaddr*)&client_info->client_address,
-                            &client_info->client_len,
+                            client_info->client_len,
                             client_info->address_buffer, 
-                            sizeof(client_info->address_buffer), 0, 0,
+                            100, 0, 0,
                             NI_NUMERICHOST);
                     printf("New connection %s\n", client_info->address_buffer);
                     
@@ -314,28 +371,41 @@ int main() {
                     //Salt handshake 
                     salt_hndshk(client_info);
 
-
                     //Insert client to the list of clients
                     insert(p_list, client_info);
 
                     //List of clients connected to the server with a successful Salt handshake       
-                    listing_clients(p_list);       
+                    listing_clients(p_list);
+      
                 } else {
+                    
                     memset(rx_buffer, 0, sizeof(hndsk_buffer));
 
                     //Search for clients by sockets and the is in the list
                     //the server decrypts the data from the client
-                    CLIENT *client_encrypt = create_client();
-                    client_encrypt = search_client(p_list, i);
 
-                    //Retrieving and decrypting messages from the client
-                    salt_read_begin_pom(&client_encrypt->channel, rx_buffer, 
+                    CLIENT *client_decrypt = create_client();
+
+                    client_decrypt = search_client(p_list, i);
+
+                    ret_msg = salt_read_begin_pom(&client_decrypt->channel, rx_buffer, 
                                        sizeof(rx_buffer), &msg_in, pom_buffer, &decrypt_size);
+                       
+                    //Check if SALT_ERROR from message
+                   if(ret_msg == SALT_ERROR) {
+                        printf("\tThe client disconnects from the server.\n");
+                        printf("\tThe server has closed him socket\n");
+                        realese_client(p_list, client_decrypt);
+                        FD_CLR(i, &master);
+                        CLOSESOCKET(i);
+                        continue;
+                    }
 
                     //Freeing client memory
-                    free(client_encrypt);
-                }//else
+                    free(client_decrypt);
+                }
 
+            //Chat room service
                 SOCKET j;
                     for(j = 1; j <= max_socket; ++j){
                         if(FD_ISSET(j, &master)){
@@ -343,6 +413,8 @@ int main() {
                                 continue;
 
                             } else {
+                                memset(rx_buffer, 0, sizeof(hndsk_buffer));
+
                                 //Search for clients by sockets and the is in the list
                                 CLIENT *client_encrypt = create_client();
                                 client_encrypt = search_client(p_list, j);
@@ -358,13 +430,16 @@ int main() {
 
                                 //Freeing client memory
                                 free(client_encrypt);
-                                } //else
-                            } //if(FD_ISSET(j, &master)
-                        } //for(j = 1; j <= max_socket; ++j)
+                            }
+                            
+                        } //if(FD_ISSET(j, &master)
+                    } //for(j = 1; j <= max_socket; ++j)
+                   
+            //Finish chat room service
+
             } //if FD_ISSET
         } //for i to max_socket
-    } //while(1)
-    
+    }
     printf("Closing listening socket...\n");
     CLOSESOCKET(socket_listen);
 
@@ -380,12 +455,13 @@ int main() {
 
 void salt_hndshk(CLIENT *p_client)
 {
+
     uint8_t hndsk_buffer[SALT_HNDSHK_BUFFER_SIZE];
-    uint8_t pom_buffer[SALT_HNDSHK_BUFFER_SIZE];
     uint8_t protocol_buffer[128];
+    clock_t start_t, end_t;
+
     salt_protocols_t protocols;
     salt_ret_t ret;
-    clock_t start_t, end_t;
 
     ret = salt_create(&p_client->channel, SALT_SERVER, my_write, my_read, &my_time);
     assert(ret == SALT_SUCCESS);
@@ -450,11 +526,11 @@ void salt_hndshk(CLIENT *p_client)
 
 //Function for reads encrypted message
 salt_ret_t salt_read_begin_pom(salt_channel_t *p_channel, 
-							   uint8_t *p_buffer, 
-							   uint32_t buffer_size, 
-							   salt_msg_t *p_msg, 
-							   uint8_t *p_pom, 
-							   uint32_t *p_size)
+                               uint8_t *p_buffer, 
+                               uint32_t buffer_size, 
+                               salt_msg_t *p_msg, 
+                               uint8_t *p_pom, 
+                               uint32_t *p_size)
 {
     
     salt_ret_t ret;
@@ -493,13 +569,12 @@ salt_ret_t salt_read_begin_pom(salt_channel_t *p_channel,
 
     *p_size = size;
     memcpy(p_pom, p_buffer, *p_size);
-      
+/*   
     printf("\nDecrypted message from client:\n%s\n", p_buffer);
     printf("\n");
+*/
 
     } else printf("Failed to load message\n");
 
     return ret;
 }
-
-
