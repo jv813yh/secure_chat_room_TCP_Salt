@@ -8,33 +8,15 @@
 
 Zoznam suborov
   
- tcp_salt
-     INC
-      |__randombytes.h
-      |__salt.h
-      |__salt_crypto_wrapper.h
-      |__salt_io.h
-      |__salti_handshake.h
-      |__salti_util.h
-      |__tweetnacl_modified.h
-      |__tcp_salt.h
-      |__win_linux_sockets.h
-      
-    SRC_LIB
-      |__randombytes.c
-      |__salt.c
-      |__salt_io.c
-      |__salti_handshake.c
-      |__salt_io.c
-      |__salti_util.c
-      |__tweetnacl_modified.c
-      |__tcp_sat.c
-      |__tweetnacl_modified_wrapper.c
-
-    __client00.c
-    __server00.c
-    __readme
-    __makefile
+ secure_chat_room_TCP_Salt
+      |__INC
+      |__SRC_LIB
+      |__client00.c
+      |__server00.c
+      |__readme
+      |__makefile
+      |__client.bat
+      |__server.bat
 
 Tato verzia je primarne urcena na operacny system Windows, avsak zdrojove kody
 su prenositelne,
