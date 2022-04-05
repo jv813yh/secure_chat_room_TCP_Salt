@@ -2,6 +2,6 @@
 ECHO Launch application client with salt-channel 
 ECHO CLIENT LOOPBACK
 
-client 192.168.100.8 8080
+client 127.0.0.1 8080
 
 pause
