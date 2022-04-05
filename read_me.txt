@@ -38,7 +38,10 @@ diplomovej praci).
 
 Po tychto procesoch moze klient vymienat zabezpecene data s ostatnymi pripojenymi
 klientami. Server poskytuje sluzbu chat room, kde kazdy pripojeni klient k serveru 
-moze odosielat a prijimat data od ostatnych pripojenych uzivateloch.  
+moze odosielat a prijimat data od ostatnych pripojenych uzivateloch. Vyuziva sa
+konzolove okno pre komunikaciu medzi klientami a serverom. Data sa zadavaju
+z prikazoveho riadku (CLI), to znamena, ze aplikacia demonstruje pracu s mensimi
+datami.
 
 Zdrojove kody su prenositelne medzi operacnymi systemami Linux a Windows 
 bez ziadnej upravy s pouzitim makefile suboru.
