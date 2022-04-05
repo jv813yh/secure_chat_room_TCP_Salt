@@ -18,5 +18,8 @@ multiple clients and servers. I use the TCP protocol as the communication channe
 # Runable on Windows and Linux with makefile.
 Salt-channel protocol: https://github.com/assaabloy-ppi/salt-channel-c
 
-Cryptographic protection is provided TweetNaCl API: https://github.com/assaabloy-ppi/salt-channel-c/blob/master/src/external/tweetnacl_modified/tweetnacl_modified_wrapper.c
+Cryptographic protection is provided TweetNaCl:
+https://tweetnacl.cr.yp.to/
+
+TweetNaCl API for Salt protocol: https://github.com/assaabloy-ppi/salt-channel-c/blob/master/src/external/tweetnacl_modified/tweetnacl_modified_wrapper.c
 
