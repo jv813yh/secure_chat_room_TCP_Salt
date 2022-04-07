@@ -1,6 +1,6 @@
 # secure_chat_room_TCP_Salt
 
-The program can be compiled using a makefile and they are added .bat files for easy launch for Windows of server and client applications. The server listens on port 8080 (macro PORT).The client enters this information when calling the application(cliet IP Port).
+The program can be compiled using a makefile and they are added .bat files for easy launch for Windows of server and client applications. The server listens on port 8080 (macro PORT).The client enters this information when calling the application(client IP Port).
 
 The client can exchange secure data with other connected ones
 clients. The server provides a chat room service where each client connects to the server
