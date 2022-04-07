@@ -118,7 +118,7 @@ SOCKET create_socket_and_connect(const char* ip_server, const char *port)
     return client_socket;
 }
 
-SOCKET create_socket_and_listen(const char* host, const char *port) 
+SOCKET create_socket_and_listen(const char *port) 
 {
     printf("\nConfiguring local address...\n");
 
@@ -149,7 +149,7 @@ SOCKET create_socket_and_listen(const char* host, const char *port)
      * for example port 8080, generate an address suitable for the bind () function
      * IPVv4 and port from CLI
      */
-    if (getaddrinfo(host, port, &hints, &bind_address))
+    if (getaddrinfo(0, port, &hints, &bind_address))
     {
         fprintf(stderr, "getaddrinfo() failed. (%d)\n", GETSOCKETERRNO());
         return 1;
