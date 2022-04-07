@@ -25,8 +25,7 @@ protokolu Salt channelv2 k nadviazaniu zabezpeceneho spojenia medzi
 viacerymi klientami a serverom. Ako komunikacny kanal vyuzivam protokol TCP.
 
 Uzivatel skompiluje aplikaciu v prikazovom riadku pomocou nastroja Makefile. 
-Ako prvy sa vola server, kde zadava z prikazoveho riadku svoju 
-IP adresu a cislo portu, na ktorom pocuva (volanim: server IPv4 port). 
+Ako prvy sa vola server, ktory pracuje na porte v zavislosti od makra PORT.
 Klient, ktory pozna IP adresu servera a cislo portu na ktorom nacuva 
 nove volania, nadviaze komunikaciu (volanim: client IPv4 port). 
 Vykona sa TCP Handshake, a v pripade uspechu sa pristupi k vytvoreniu 
