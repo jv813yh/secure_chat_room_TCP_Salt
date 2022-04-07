@@ -132,13 +132,12 @@ SOCKET create_socket_and_connect(const char* ip_server, const char *port);
  * a connection from the client.
  * Function parameters are arguments from the command line.
  *
- * @par ip_server: ip adrress server 
  * @par port: number of port
  *
  * return server socket and expects a connection from the client.
  * return wrong report in case failure
  */
-SOCKET create_socket_and_listen(const char* host, const char *port);
+SOCKET create_socket_and_listen(const char *port);
 
 /* ====== Functions for work with reading/writting  ======= */
 
