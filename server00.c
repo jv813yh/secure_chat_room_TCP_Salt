@@ -58,16 +58,13 @@
  */
 #include "tcp_salt_chat_room.h"
 
+/* The port number on which the server is loading */
+#define PORT                    "8080"
 
-int main(int argc, char *argv[]) 
+
+int main(void) 
 {   
-    //Input from the command line
-    if (argc < 3) 
-    {
-        fprintf(stderr, "usage: server IPV4  port\n");
-        return 1;
-    } 
-
+    
 #if defined(_WIN32)
     //The MAKEWORD macro allows us to request Winsock version 2.2, ONLY FOR WINDOWS !!!
     WSADATA d;
@@ -83,7 +80,7 @@ int main(int argc, char *argv[])
      * Creates a socket (return this socket) with which it waits 
      * for a connection from the client   
      */
-    SOCKET socket_listen = create_socket_and_listen(argv[1], argv[2]);
+    SOCKET socket_listen = create_socket_and_listen(PORT);
     printf("Waiting for connections...\n");
 
 /* ==== The whole implementation of secure chat communication by Salt channel protocol ==== */
